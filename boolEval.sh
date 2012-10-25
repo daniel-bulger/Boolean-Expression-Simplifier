@@ -9,7 +9,7 @@ if [ $# -ge 1 ]
     fi
 fi
 OUTPUTFILE=`basename $OUTPUTFILE ".pdf"`
-C++/boolEval $INPUT_EXPRESSION > "./Tex Output/output.tex"
+C++/boolEval "$INPUT_EXPRESSION" > "./Tex Output/output.tex"
 if [ $? -eq 0 ]; #normal exit
     then
     mkdir "Tex Output"
