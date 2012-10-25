@@ -593,8 +593,13 @@ bool Expression::directlyApplyInferenceRule(int i){
                     for(int k = 0; k < operands[j]->operands.size(); k++){ 
                         // check each operand in this expression to see if it matches an expression from our outer expression set
                         Expression* negation_wrapper = new Expression();
-                        negation_wrapper->Expression_type = Expression::NOT;
-                        negation_wrapper->operands.push_back(operands[j]->operands[k]);
+                        if(operands[j]->operands[k]->Expression_type!= Expression::NOT){
+                            negation_wrapper->Expression_type = Expression::NOT;
+                            negation_wrapper->operands.push_back(operands[j]->operands[k]);
+                        }
+                        else{
+                            negation_wrapper = operands[j]->operands[k]->operands[0];
+                        }
                         if(find(operand_representations.begin(), operand_representations.end(), 
                             *(negation_wrapper)) != operand_representations.end()) {                            
                             *old_expression = *this;
@@ -738,7 +743,8 @@ void Expression::printExpressionHumanReadable() const{
 void printTransformation(const Expression& from , const Expression& to , const string method){
     //cout << "\\hfill$" << from.getExpressionHumanReadable() <<  "\\Leftrightarrow";
     //cout << to.getExpressionHumanReadable() << "$\\hfill By " << method << "\\\\" << endl;
-    
-    cout << "\\noindent \\textbox{\\hfill} \\textbox{\\hfil $ \\Downarrow $ \\hfil} \\textbox{\\hfill By "<< method << " }"  << endl;
+    string method_cpy = method;
+    std::replace(method_cpy.begin(), method_cpy.end(), '_', ' ');
+    cout << "\\noindent \\textbox{\\hfill} \\textbox{\\hfil $ \\Downarrow $ \\hfil} \\textbox{\\hfill By "<< method_cpy << " }"  << endl;
 
 }

@@ -125,10 +125,8 @@ int main(int argc, char* argv[]){
         cout << "\\end{equation}" << endl;
             // simplifies the expression until it can be simplified no more
     }
-    cout << "Final expression:\\\\" << endl;
-    cout << "\\begin{equation}" << endl;
-    outerExpression->printExpressionHumanReadable();
-    cout << "\\end{equation}" << endl;
+    cout << "\\\\\\noindent \\textbox{ Final expression: \\hfill} \\textbox{\\hfil $ " << outerExpression->getExpressionHumanReadable() << " $ \\hfil} \\textbox{\\hfill}"  << endl;
+
     cout << "\\end{document}" << endl;
     return 0;
 }
