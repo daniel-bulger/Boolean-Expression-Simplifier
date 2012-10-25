@@ -1,9 +1,7 @@
 INPUT_EXPRESSION=""
 OUTPUTFILE="./output"
-echo $#
 if [ $# -ge 1 ]
     then
-    echo $1
     INPUT_EXPRESSION=$1
     if [ $# -eq 2 ]
         then
