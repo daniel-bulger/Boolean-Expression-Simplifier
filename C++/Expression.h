@@ -1,5 +1,6 @@
 #include <vector>
 #include <set>
+#include <utility>
 #include <algorithm>
 using namespace std;
 struct ExpressionComparator;
@@ -29,7 +30,10 @@ public:
             Expression::inference_rules.push_back("idepotence");
             Expression::inference_rules.push_back("demorgan");
             Expression::inference_rules.push_back("absorption");
+            Expression::inference_rules.push_back("reduction");
             Expression::inference_rules.push_back("distribution_backwards");
+            //Expression::inference_rules.push_back("distribution_forward");
+
 
         }
         Expression_type = ATOMIC;
@@ -64,9 +68,10 @@ public:
         return (operands.size()==0);
     }
     void clean(); // merges connected ANDs and ORs for associativity efficiency -- a^(b^c) -> a^b^c
-    bool simplify(); // attempts to simplify the function.  Returns true if function has changed
+    bool simplify(Expression&); // attempts to simplify the function.  Returns true if function has changed
     bool applyInferenceRule(int n); // attempts to apply the nth defined inference rule.  Returns true if inference rule is applied
     bool directlyApplyInferenceRule(int i);
+    pair<int,int> getOperandsWithMatches() const;
     string getExpressionHumanReadable() const;
     void printExpressionHumanReadable() const;
     string getExpressionMathematically() const;

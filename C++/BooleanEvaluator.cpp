@@ -3,11 +3,13 @@
 #include <vector>
 #include <sys/time.h>
 #include <algorithm>
+#include <stdio.h>
+#include <ctype.h>
 #include "Expression.cpp"
 using namespace std;
 Expression* parseBooleanExpression(string booleanExpression){ // recursive function to parse a boolean expression
     // Expressions will be nested to some unknown level, so we will first determine each statement's depth
-
+    //booleanExpression.erase(std::remove_if(booleanExpression.begin(), booleanExpression.end(), ::isspace), booleanExpression.end());
     Expression* mainConnective = new Expression();
     static const char disjunction_arr[] = {'|','+'};
     vector<char> disjunctions(disjunction_arr, disjunction_arr + sizeof(disjunction_arr) / sizeof(disjunction_arr[0]) );
@@ -15,6 +17,9 @@ Expression* parseBooleanExpression(string booleanExpression){ // recursive funct
     vector<char> conjunctions(conjunction_arr, conjunction_arr + sizeof(conjunction_arr) / sizeof(conjunction_arr[0]) );
     static const char negation_arr[] = {'~','!','-'};
     vector<char> negations(negation_arr, negation_arr + sizeof(negation_arr) / sizeof(negation_arr[0]) );
+    //static const char negation_arr_postfix[] = {'\''};
+    //vector<char> negations_postfix(negation_arr_postfix, negation_arr_postfix + sizeof(negation_arr_postfix) / sizeof(negation_arr_postfix[0]) );
+
     int depth = 0; // keeps track of how deep we are in the expression so we know where the main connective is
     bool depth_reached_zero = false;
     while(booleanExpression[0] == '(' && booleanExpression[booleanExpression.length()-1]==')' && depth_reached_zero == false){
@@ -74,6 +79,12 @@ Expression* parseBooleanExpression(string booleanExpression){ // recursive funct
                 // create only operand
                 return mainConnective;
             }
+            /*if(find(negations_postfix.begin(),negations_postfix.end(),booleanExpression[i]) != negations_postfix.end()){
+                mainConnective->Expression_type = Expression::NOT;
+                mainConnective->operands.push_back(parseBooleanExpression(booleanExpression.substr(0,i)));
+                // create only operand
+                return mainConnective;
+            }*/
         }
         if(booleanExpression[i] == '('){ // if we see a begin paren, we are going deeper
             depth++;
@@ -106,7 +117,9 @@ int main(int argc, char* argv[]){
     cout << "\\begin{equation}" << endl;
     outerExpression->printExpressionHumanReadable();
     cout << "\\end{equation}" << endl;
-    while(outerExpression->simplify()){
+    Expression last_expression_expanded;
+    while(outerExpression->simplify(last_expression_expanded)){
+        outerExpression->clean();
         cout << "\\begin{equation}" << endl;
         outerExpression->printExpressionHumanReadable();
         cout << "\\end{equation}" << endl;

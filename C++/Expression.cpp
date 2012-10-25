@@ -3,6 +3,7 @@
 #include <set>
 #include <cmath>
 #include <numeric>
+#include <utility>
 using namespace std;
 void printTransformation(const Expression& from , const Expression& to , const string method);
 vector<string> Expression::inference_rules;
@@ -39,11 +40,18 @@ vector<string> Expression::inference_rules;
         return false;
     }*/
 
-bool Expression::simplify(){
+bool Expression::simplify(Expression& last_expression_expanded){
     clean();
     /* It is necessary that we apply the 'best' inference rule possible, regardless of where it is in the tree */
+    Expression previous_expression = *this;
+    if(previous_expression == last_expression_expanded){
+        return false;
+    }
     for(int i = 0; i<inference_rules.size();i++){ // attempt to apply each inference rule until we find one we can apply
         if(applyInferenceRule(i)){ // if we successfully applied the rule
+            if(inference_rules[i] == "distribution_forward"){
+                last_expression_expanded = previous_expression;
+            }
             return true; // do nothing else, we only want to apply one rule per simplification
         }
         /* If we are unable to apply a rule at this level, we will go down one level*/
@@ -53,16 +61,16 @@ bool Expression::simplify(){
 bool Expression::applyInferenceRule(int i){
     /* We first attempt to apply the inference rule directly to the current statement*/
     if(directlyApplyInferenceRule(i)){
-        return true;
+        return i;
     }
     else{
         if(Expression_type == Expression::ATOMIC){ // if the statement is atomic
-            return false;
+            return 0;
             // Nothing to do here... we are done
         }
         for(int j = 0; j<operands.size();j++){ // otherwise, try to apply the rule to all children
             if(operands[j]->applyInferenceRule(i)){ // if the rule can be applied to any child
-                return true; // we are done
+                return i; // we are done
             }
         }
     }
@@ -359,86 +367,225 @@ bool Expression::directlyApplyInferenceRule(int i){
     }
     if(inference_rules[i]=="distribution_backwards"){
         if(Expression_type == Expression::AND || Expression_type == Expression::OR){ // this rule applies to ANDs and ORs only
-            vector<Expression> expressions_in_every_expression;
-            vector<Expression> expressions_not_in_every_expression;
-            for(int j = 0; j < operands.size(); j++){
-                if((Expression_type == Expression::AND && operands[j]->Expression_type == Expression::OR)||
-                    (Expression_type == Expression::OR && operands[j]->Expression_type == Expression::AND)){     
-                    if(expressions_in_every_expression.size() == 0){ // we just started looking
-                        for(int k = 0; k < operands[j]->operands.size(); k++){
-                            expressions_in_every_expression.push_back(*(operands[j]->operands[k]));
+            pair<int,int> operands_with_matches = getOperandsWithMatches();
+            if(operands_with_matches.first != -1){
+                vector<Expression> expressions_in_both_expressions;
+                vector<Expression> expressions_not_in_both_expressions;
+                for(int j = 0; j < operands[operands_with_matches.first]->operands.size(); j++){
+                    expressions_not_in_both_expressions.push_back(*(operands[operands_with_matches.first]->operands[j]));
+                }
+                for(int j = 0; j < operands[operands_with_matches.second]->operands.size(); j++){
+                    if(find(expressions_not_in_both_expressions.begin(), expressions_not_in_both_expressions.end(), 
+                                *(operands[operands_with_matches.second]->operands[j])) != expressions_not_in_both_expressions.end()) { 
+                        expressions_in_both_expressions.push_back(*(operands[operands_with_matches.second]->operands[j]));
+                        expressions_not_in_both_expressions.erase(find(expressions_not_in_both_expressions.begin(), expressions_not_in_both_expressions.end(), 
+                                *(operands[operands_with_matches.second]->operands[j])));
+                    }
+                }
+                if(expressions_in_both_expressions.size()>0){
+                    Expression* old_expression = new Expression();
+                    *old_expression = *this;
+                    Expression* new_outer_operand = new Expression();
+                    if(Expression_type == Expression::AND){
+                        new_outer_operand->Expression_type = Expression::OR;
+                    }
+                    if(Expression_type == Expression::OR){
+                        new_outer_operand->Expression_type = Expression::AND;
+                    }
+                    Expression new_first_operand = *operands[operands_with_matches.first];
+                    Expression new_second_operand = *operands[operands_with_matches.second];
+                    operands.erase(operands.begin()+operands_with_matches.first);
+                    if(operands_with_matches.first < operands_with_matches.second){
+                        operands.erase(operands.begin()+operands_with_matches.second - 1);
+                    }
+                    else{
+                        operands.erase(operands.begin()+operands_with_matches.second);   
+                    }
+                    bool first_operand_empty = false;
+                    bool second_operand_empty = false;
+                    for(int j = 0; j < expressions_in_both_expressions.size(); j++){
+                        for(int k = 0; k < new_first_operand.operands.size(); k++){
+                            if(*(new_first_operand.operands[k])==expressions_in_both_expressions[j]){
+                                new_first_operand.operands.erase(new_first_operand.operands.begin()+k);
+                                k--;
+                            }
+                        }
+                        if(new_first_operand.operands.size()==0){
+                            first_operand_empty = true;
+                        }
+                        if(new_first_operand.operands.size()==1){
+                            new_first_operand = *(new_first_operand.operands[0]);
+                        }
+
+                        for(int k = 0; k < new_second_operand.operands.size(); k++){
+                            if(*(new_second_operand.operands[k])==expressions_in_both_expressions[j]){
+                                new_second_operand.operands.erase(new_second_operand.operands.begin()+k);
+                                k--;
+                            }
+                        }
+                        if(new_second_operand.operands.size()==0){
+                            second_operand_empty = true;
+                        }
+                        if(new_second_operand.operands.size()==1){
+                            new_second_operand = *(new_second_operand.operands[0]);
+                        }
+                        Expression* new_exp = new Expression;
+                        *new_exp = expressions_in_both_expressions[j];
+                        new_outer_operand->operands.push_back(new_exp);
+                    }
+                    Expression* new_inner_operand = new Expression();
+                    new_inner_operand->Expression_type = Expression_type;
+                    if(!first_operand_empty){
+                        Expression* new_first_exp = new Expression();
+                        *new_first_exp = new_first_operand;
+                        new_inner_operand->operands.push_back(new_first_exp);
+                    }
+                    if(!second_operand_empty){
+                        Expression* new_second_exp = new Expression();
+                        *new_second_exp = new_second_operand;
+                        new_inner_operand->operands.push_back(new_second_exp);
+                    }
+                    bool inner_operand_empty = false;
+                    if(first_operand_empty && second_operand_empty){
+                        inner_operand_empty = true;
+                    }
+                    else if(first_operand_empty || second_operand_empty){
+                        *new_inner_operand = *(new_inner_operand->operands[0]); 
+                    }
+                    if(!inner_operand_empty){
+                        new_outer_operand->operands.push_back(new_inner_operand);
+                    }
+                    if(new_outer_operand->operands.size() == 1){
+                        *new_outer_operand = *(new_outer_operand->operands[0]); 
+                    }
+                    if(operands.size()>0){
+                        operands.push_back(new_outer_operand);
+                    }
+                    else{
+                        *this = *new_outer_operand;
+                    }
+
+                    printTransformation(*old_expression, *this, Expression::inference_rules[i]);
+                    return true;
+                }
+                    // we found something, yay!
+                    /*for(int j = 0; j < operands.size(); j++){
+                        Expression* unique_expression_in_this_expression = new Expression();
+                        *unique_expression_in_this_expression = *(operands[j]);
+                        for(int k = 0; k < unique_expression_in_this_expression->operands.size(); k++){
+                            if(find(expressions_in_every_expression.begin(), expressions_in_every_expression.end(), 
+                            *(unique_expression_in_this_expression->operands[k])) != expressions_in_every_expression.end()) {     
+                                unique_expression_in_this_expression->operands.erase(unique_expression_in_this_expression->operands.begin()+k); 
+                                k--;
+                            }
+                        }
+                        if(unique_expression_in_this_expression->operands.size()==1){
+                            *unique_expression_in_this_expression = *(unique_expression_in_this_expression->operands[0]);
+                        }
+                        expressions_not_in_every_expression.push_back(*unique_expression_in_this_expression);
+                    }
+                    Expression* new_expression = new Expression();
+                    if(Expression_type == Expression::OR){
+                        new_expression->Expression_type = Expression::AND;
+                    }
+                    else{
+                        new_expression->Expression_type = Expression::OR;
+                    }
+                    for(int j = 0; j < expressions_in_every_expression.size(); j++){
+                        new_expression->operands.push_back(&(expressions_in_every_expression[j]));
+                    }
+                    Expression* new_inner_expression = new Expression();
+                    new_inner_expression->Expression_type = Expression_type;
+                    for(int j = 0; j < expressions_not_in_every_expression.size(); j++){
+                        new_inner_expression->operands.push_back(&(expressions_not_in_every_expression[j]));
+                    }
+                    new_expression->operands.push_back(new_inner_expression);
+                    printTransformation(*this, *new_expression, Expression::inference_rules[i]);
+                    *this = *new_expression;
+                    return true;
+                }
+                */
+                /*for(int j = 0; j < operands.size(); j++){
+                    if((Expression_type == Expression::AND && operands[j]->Expression_type == Expression::OR)||
+                        (Expression_type == Expression::OR && operands[j]->Expression_type == Expression::AND)){     
+                        if(expressions_in_every_expression.size() == 0){ // we just started looking
+                            for(int k = 0; k < operands[j]->operands.size(); k++){
+                                expressions_in_every_expression.push_back(*(operands[j]->operands[k]));
+                            }
+                        }
+                        else{
+                            vector<Expression> expressions_in_this_expression;
+                            for(int k = 0; k < operands[j]->operands.size(); k++){
+                                expressions_in_this_expression.push_back(*(operands[j]->operands[k]));
+                            }
+                            for(int k = 0; k < expressions_in_every_expression.size(); k++){
+                                if(find(expressions_in_this_expression.begin(), expressions_in_this_expression.end(), 
+                                expressions_in_every_expression[k]) == expressions_in_this_expression.end()) {                            
+                                expressions_in_every_expression.erase(expressions_in_every_expression.begin()+k); 
+                                k--;
+                                }
+                            }
+                            if(expressions_in_every_expression.size() == 0){ // no dups
+                                break;
+                            }
                         }
                     }
                     else{
-                        vector<Expression> expressions_in_this_expression;
-                        for(int k = 0; k < operands[j]->operands.size(); k++){
-                            expressions_in_this_expression.push_back(*(operands[j]->operands[k]));
-                        }
-                        for(int k = 0; k < expressions_in_every_expression.size(); k++){
-                            if(find(expressions_in_this_expression.begin(), expressions_in_this_expression.end(), 
-                            expressions_in_every_expression[k]) == expressions_in_this_expression.end()) {                            
-                            expressions_in_every_expression.erase(expressions_in_every_expression.begin()+k); 
-                            k--;
+                        expressions_in_every_expression.clear(); // make sure we don't try to process this if there are any extraneous args
+                        break;
+                    }
+                }
+                if(expressions_in_every_expression.size()>0){
+                    // we found something, yay!
+                    for(int j = 0; j < operands.size(); j++){
+                        Expression* unique_expression_in_this_expression = new Expression();
+                        *unique_expression_in_this_expression = *(operands[j]);
+                        for(int k = 0; k < unique_expression_in_this_expression->operands.size(); k++){
+                            if(find(expressions_in_every_expression.begin(), expressions_in_every_expression.end(), 
+                            *(unique_expression_in_this_expression->operands[k])) != expressions_in_every_expression.end()) {     
+                                unique_expression_in_this_expression->operands.erase(unique_expression_in_this_expression->operands.begin()+k); 
+                                k--;
                             }
                         }
-                        if(expressions_in_every_expression.size() == 0){ // no dups
-                            break;
+                        if(unique_expression_in_this_expression->operands.size()==1){
+                            *unique_expression_in_this_expression = *(unique_expression_in_this_expression->operands[0]);
                         }
+                        expressions_not_in_every_expression.push_back(*unique_expression_in_this_expression);
                     }
-                }
-                else{
-                    expressions_in_every_expression.clear(); // make sure we don't try to process this if there are any extraneous args
-                    break;
-                }
-            }
-            if(expressions_in_every_expression.size()>0){
-                // we found something, yay!
-                for(int j = 0; j < operands.size(); j++){
-                    Expression* unique_expression_in_this_expression = new Expression();
-                    *unique_expression_in_this_expression = *(operands[j]);
-                    for(int k = 0; k < unique_expression_in_this_expression->operands.size(); k++){
-                        if(find(expressions_in_every_expression.begin(), expressions_in_every_expression.end(), 
-                        *(unique_expression_in_this_expression->operands[k])) != expressions_in_every_expression.end()) {     
-                            unique_expression_in_this_expression->operands.erase(unique_expression_in_this_expression->operands.begin()+k); 
-                            k--;
-                        }
+                    Expression* new_expression = new Expression();
+                    if(Expression_type == Expression::OR){
+                        new_expression->Expression_type = Expression::AND;
                     }
-                    if(unique_expression_in_this_expression->operands.size()==1){
-                        *unique_expression_in_this_expression = *(unique_expression_in_this_expression->operands[0]);
+                    else{
+                        new_expression->Expression_type = Expression::OR;
                     }
-                    expressions_not_in_every_expression.push_back(*unique_expression_in_this_expression);
+                    for(int j = 0; j < expressions_in_every_expression.size(); j++){
+                        new_expression->operands.push_back(&(expressions_in_every_expression[j]));
+                    }
+                    Expression* new_inner_expression = new Expression();
+                    new_inner_expression->Expression_type = Expression_type;
+                    for(int j = 0; j < expressions_not_in_every_expression.size(); j++){
+                        new_inner_expression->operands.push_back(&(expressions_not_in_every_expression[j]));
+                    }
+                    new_expression->operands.push_back(new_inner_expression);
+                    printTransformation(*this, *new_expression, Expression::inference_rules[i]);
+                    *this = *new_expression;
+                    return true;
                 }
-                Expression* new_expression = new Expression();
-                if(Expression_type == Expression::OR){
-                    new_expression->Expression_type = Expression::AND;
-                }
-                else{
-                    new_expression->Expression_type = Expression::OR;
-                }
-                for(int j = 0; j < expressions_in_every_expression.size(); j++){
-                    new_expression->operands.push_back(&(expressions_in_every_expression[j]));
-                }
-                Expression* new_inner_expression = new Expression();
-                new_inner_expression->Expression_type = Expression_type;
-                for(int j = 0; j < expressions_not_in_every_expression.size(); j++){
-                    new_inner_expression->operands.push_back(&(expressions_not_in_every_expression[j]));
-                }
-                new_expression->operands.push_back(new_inner_expression);
-                printTransformation(*this, *new_expression, Expression::inference_rules[i]);
-                *this = *new_expression;
-                return true;
+                */
             }
         }
         // find all expressions that are in all inner expressions
         // create new expression with remaining expressions from inner expressions and in_all expressions
     }
-    /*if(inference_rules[i]=="reduction"){ //  P ∧ (¬P ∨ Q) <-> P ∧ Q
+    if(inference_rules[i]=="reduction"){ //  P ∧ (¬P ∨ Q) <-> P ∧ Q
         bool accomplished_something = false;
         if(Expression_type == Expression::AND || Expression_type == Expression::OR){ // this rule applies to ANDs and ORs only
             vector<Expression> operand_representations;
             for(int j = 0; j<operands.size();j++){
                 operand_representations.push_back(*(operands[j])); // put all operand expressions into a set
             }
+            Expression* old_expression = new Expression();
             for(int j = 0; j<operands.size();j++){
                 if((Expression_type == Expression::AND && operands[j]->Expression_type == Expression::OR)||
                     (Expression_type == Expression::OR && operands[j]->Expression_type == Expression::AND)){
@@ -450,26 +597,25 @@ bool Expression::directlyApplyInferenceRule(int i){
                         negation_wrapper->operands.push_back(operands[j]->operands[k]);
                         if(find(operand_representations.begin(), operand_representations.end(), 
                             *(negation_wrapper)) != operand_representations.end()) {                            
-                            printExpressionHumanReadable();
-                            cout << "\\makebox[3in][l]{By " << Expression::inference_rules[i] << " becomes" << "}\\\\" << endl;
+                            *old_expression = *this;
                             // if any sub-operand matches one of our outer operands, we will absorb the whole operand
-                            operands.erase(operands.begin()+j); 
-                            j--; // decrement j so the outer for loop iteration does not break
+                            operands[j]->operands.erase(operands[j]->operands.begin()+k);
+                            if(operands[j]->operands.size() == 1){
+                                *(operands[j]) = *(operands[j]->operands[0]);
+                            } 
                             accomplished_something = true;
-                            break;
+                            goto finished;
                         }
                     }
                 }
             }
-            if(operands.size() == 1){
-                *this = *(operands[0]); // if we eliminated all but one of the operands, we can eliminate this level of the expression structure
-            }
+            finished:
             if(accomplished_something){
-                printExpressionHumanReadable();
+                printTransformation(*old_expression, *this, Expression::inference_rules[i]);
                 return true;
             }
         }
-    }*/
+    }
     return false;
 }
 void Expression::clean(){ // merges ANDs and ORs for commutivity
@@ -492,6 +638,34 @@ void Expression::clean(){ // merges ANDs and ORs for commutivity
     for(int i = 0; i < temporary_operand_list.size(); i++){
         operands.push_back(temporary_operand_list[i]);
     }
+    if(Expression_type == Expression::AND || Expression_type == Expression::OR){
+        if(operands.size()==1){
+            *this = *(operands[0]);
+        }
+    }
+}
+
+pair<int,int> Expression::getOperandsWithMatches() const{ // returns the indicies of the operands whose operands are of the opposite junction andshare a term
+    if(Expression_type==Expression::AND || Expression_type==Expression::OR){
+        for(int i = 0; i < operands.size(); i++){
+            if((Expression_type == Expression::AND && operands[i]->Expression_type == Expression::OR)||
+                    (Expression_type == Expression::OR && operands[i]->Expression_type == Expression::AND)){
+                for(int j = 0; j < operands[i]->operands.size(); j++){
+                    for(int k = i+1; k < operands.size(); k++){
+                        if((Expression_type == Expression::AND && operands[k]->Expression_type == Expression::OR)||
+                    (Expression_type == Expression::OR && operands[k]->Expression_type == Expression::AND)){
+                            for(int l = 0; l < operands[k]->operands.size(); l++){
+                                if(*(operands[i]->operands[j]) == *(operands[k]->operands[l]) ){
+                                    return make_pair(i,k);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return make_pair(-1,-1);
 }
 
 /* String conversion functions */
