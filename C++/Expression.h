@@ -10,10 +10,11 @@ public:
     /* class variables */
 
     static vector<string> inference_rules;
+    static bool suppress_output; // controls whether the simplify() function writes to cout
     vector<Expression*> operands; // will hold the Expression's operand(s)
     char symbol; // this will be set if this Expression object represents an atomic statement
     enum Expression_types{
-        OR, AND, NOT, ATOMIC
+        OR, AND, NOT, IMPLICATION, BICONDITIONAL, ATOMIC
     };
     int Expression_type;
 
@@ -21,6 +22,7 @@ public:
 
     Expression(){
         if (Expression::inference_rules.size() == 0) {
+            Expression::inference_rules.push_back("eliminate_implication");
             Expression::inference_rules.push_back("double negation");
             Expression::inference_rules.push_back("identity");
             Expression::inference_rules.push_back("annihilation");
@@ -33,8 +35,7 @@ public:
             Expression::inference_rules.push_back("reduction");
             Expression::inference_rules.push_back("distribution_backwards");
             //Expression::inference_rules.push_back("distribution_forward");
-
-
+            Expression::suppress_output = false;
         }
         Expression_type = ATOMIC;
         symbol = '\0'; // set the symbol to the null character initially
@@ -68,7 +69,8 @@ public:
         return (operands.size()==0);
     }
     void clean(); // merges connected ANDs and ORs for associativity efficiency -- a^(b^c) -> a^b^c
-    bool simplify(Expression&); // attempts to simplify the function.  Returns true if function has changed
+    void simplifyCompletely();
+    bool simplify(); // attempts to simplify the function.  Returns true if function has changed
     bool applyInferenceRule(int n); // attempts to apply the nth defined inference rule.  Returns true if inference rule is applied
     bool directlyApplyInferenceRule(int i);
     pair<int,int> getOperandsWithMatches() const;

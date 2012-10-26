@@ -9,7 +9,7 @@
 using namespace std;
 Expression* parseBooleanExpression(string booleanExpression){ // recursive function to parse a boolean expression
     // Expressions will be nested to some unknown level, so we will first determine each statement's depth
-    //booleanExpression.erase(std::remove_if(booleanExpression.begin(), booleanExpression.end(), ::isspace), booleanExpression.end());
+    booleanExpression.erase(std::remove_if(booleanExpression.begin(), booleanExpression.end(), ::isspace), booleanExpression.end());
     Expression* mainConnective = new Expression();
     static const char disjunction_arr[] = {'|','+'};
     vector<char> disjunctions(disjunction_arr, disjunction_arr + sizeof(disjunction_arr) / sizeof(disjunction_arr[0]) );
@@ -117,8 +117,7 @@ int main(int argc, char* argv[]){
     cout << "\\begin{equation}" << endl;
     outerExpression->printExpressionHumanReadable();
     cout << "\\end{equation}" << endl;
-    Expression last_expression_expanded;
-    while(outerExpression->simplify(last_expression_expanded)){
+    while(outerExpression->simplify()){
         outerExpression->clean();
         cout << "\\begin{equation}" << endl;
         outerExpression->printExpressionHumanReadable();

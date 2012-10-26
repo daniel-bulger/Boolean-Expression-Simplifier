@@ -7,6 +7,7 @@
 using namespace std;
 void printTransformation(const Expression& from , const Expression& to , const string method);
 vector<string> Expression::inference_rules;
+bool Expression::suppress_output;
 /*bool Expression::operator<(const Expression& other) const{ 
     if(*this == other){
         return false;
@@ -39,19 +40,14 @@ vector<string> Expression::inference_rules;
         }
         return false;
     }*/
-
-bool Expression::simplify(Expression& last_expression_expanded){
+void Expression::simplifyCompletely(){
+    while(simplify()){} // simplify until we can simplify no more
+}
+bool Expression::simplify(){
     clean();
     /* It is necessary that we apply the 'best' inference rule possible, regardless of where it is in the tree */
-    Expression previous_expression = *this;
-    if(previous_expression == last_expression_expanded){
-        return false;
-    }
     for(int i = 0; i<inference_rules.size();i++){ // attempt to apply each inference rule until we find one we can apply
         if(applyInferenceRule(i)){ // if we successfully applied the rule
-            if(inference_rules[i] == "distribution_forward"){
-                last_expression_expanded = previous_expression;
-            }
             return true; // do nothing else, we only want to apply one rule per simplification
         }
         /* If we are unable to apply a rule at this level, we will go down one level*/
@@ -78,6 +74,18 @@ bool Expression::applyInferenceRule(int i){
 }
 bool Expression::directlyApplyInferenceRule(int i){
     /* The outer conditionals determine which inference rule should be attempted on the expression */
+    if(inference_rules[i] == "eliminate_implication"){
+        if(Expression_type == Expression::IMPLICATION){
+            Expression* old_expression = new Expression();
+            *old_expression = *this;
+            Expression_type = Expression::OR;
+            Expression* negation_wrapper = new Expression();
+            negation_wrapper->Expression_type = Expression::NOT;
+            negation_wrapper->operands.push_back(operands[0]);
+            *(operands[0]) = *negation_wrapper;
+            printTransformation(*this, *(operands[i]->operands[i]), Expression::inference_rules[i]);            
+        }
+    }
     if(inference_rules[i] == "double negation"){ // attempt to apply the double negation rule
         if(Expression_type == Expression::NOT && operands[0]->Expression_type == Expression::NOT){
             printTransformation(*this, *(operands[i]->operands[i]), Expression::inference_rules[i]);
@@ -741,6 +749,9 @@ void Expression::printExpressionHumanReadable() const{
     cout <<getExpressionHumanReadable() << "\\\\" << endl;
 }
 void printTransformation(const Expression& from , const Expression& to , const string method){
+    if(from.suppress_output){
+        return;
+    }
     //cout << "\\hfill$" << from.getExpressionHumanReadable() <<  "\\Leftrightarrow";
     //cout << to.getExpressionHumanReadable() << "$\\hfill By " << method << "\\\\" << endl;
     string method_cpy = method;
